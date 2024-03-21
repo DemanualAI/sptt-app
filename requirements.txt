@@ -5,4 +5,5 @@ googleapis-common-protos==1.62.0
 setuptools==69.1.1
 speechmatics-python==1.14.3
 streamlit==1.31.0
+openai==1.14.2
 
