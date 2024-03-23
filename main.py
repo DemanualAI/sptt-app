@@ -131,7 +131,7 @@ def main():
 
     st.title("Audio Transcription")
     st.header("Upload an Audio File")
-    uploaded_file = st.file_uploader("", type=["mp3"])
+    uploaded_file = st.file_uploader("")
 
     if uploaded_file is not None:
         st.header("Transcription Result")
