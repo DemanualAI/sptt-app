@@ -1,5 +1,4 @@
 import streamlit as st
-from pymongo import MongoClient
 import urllib.parse
 from speechmatics.models import ConnectionSettings
 from speechmatics.batch_client import BatchClient
@@ -7,22 +6,20 @@ from google.cloud import speech
 import os
 import time
 import openai
+import supabase
 
-# Connect to MongoDB
-username = urllib.parse.quote_plus("demanualteam")
-password = urllib.parse.quote_plus("Demanual@1235!")
-uri = f"mongodb+srv://{username}:{password}@medical-transcription.xfonp.mongodb.net/?retryWrites=true&w=majority&appName=medical-transcription"
+# Initialize Supabase client
+supabase_url = "https://cxubvlwhxxdwvfwtofgv.supabase.co"
+supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4dWJ2bHdoeHhkd3Zmd3RvZmd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTE4MTA0NjQsImV4cCI6MjAyNzM4NjQ2NH0.Wbmni2Rh_B5Bx5ipcCzoeMX-5Bn5PrnMVfMXCeEYvZw"
+supabase_client = supabase.create_client(supabase_url, supabase_key)
 
-client = MongoClient(uri)
-db = client["medical-transcription-auth"]
-collection = db["auth-collection"]
-
-def authenticate_user(username, password):
+def authenticate_user(users_email, users_password):
     try:
-        user = collection.find_one({"username": username, "password": password})
-        return user is not None
+        # Sign in with email and password
+        user = supabase_client.auth.sign_in_with_password({ "email": users_email, "password": users_password })
+        return True
     except Exception as e:
-        print(f"An error occurred: {e}")  # Log the error for debugging
+        print(f"An error occurred during authentication: {e}")
         st.error("An error occurred during authentication. Please try again.")
         return False
 
