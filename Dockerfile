@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
 ARG CACHEBUST=1
 RUN git clone https://github.com/DemanualAI/sptt-app.git .
 
+ARG CACHEBUST=1
 RUN pip3 install -r requirements.txt
 
 EXPOSE 8501
