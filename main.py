@@ -23,36 +23,6 @@ def authenticate_user(users_email, users_password):
         st.error("An error occurred during authentication. Please try again.")
         return False
 
-def transcribe_audio():
-    st.sidebar.title("API Setup")
-    st.sidebar.expander("Expand", expanded=True)
-    service_option = st.sidebar.selectbox("Select Transcription Service", ("Speechmatics", "Google Cloud Speech-to-Text", "OpenAI"), key="transcription_service")
-    language_option = st.sidebar.radio("Select Language (Accent)", ("Australia", "American", "British"))
-
-    if service_option == "Google Cloud Speech-to-Text":
-        credentials_file = st.sidebar.file_uploader("Upload credentials.json", type=["json"])
-        api_key = None
-    else:
-        api_key = st.sidebar.text_input("Enter API Key")
-
-    if service_option == "Speechmatics":
-        accuracy_option = st.sidebar.radio("Select Accuracy Level", ("Enhanced", "Standard"))
-
-    st.title("Upload your audio to transcribe:")
-    uploaded_file = st.file_uploader("")
-
-    if uploaded_file is not None:
-        if st.button("Transcribe"):
-            if service_option == "Speechmatics":
-                transcribe_with_speechmatics(uploaded_file, language_option, api_key, accuracy_option)
-            elif service_option == "Google Cloud Speech-to-Text":
-                if credentials_file is not None:
-                    credentials = credentials_file.read()
-                    transcribe_with_google(uploaded_file, language_option, credentials)
-            elif service_option == "OpenAI":
-                # Call the function to transcribe with OpenAI
-                transcribe_with_openai(uploaded_file)
-
 def transcribe_with_speechmatics(audio_file, language_code, api_key, operating_point):
     # Speechmatics authentication token and other settings
     settings = ConnectionSettings(
@@ -93,7 +63,7 @@ def transcribe_with_speechmatics(audio_file, language_code, api_key, operating_p
     }
 
     # Save the uploaded file locally
-    audio_filename = "uploaded_audio" + os.path.splitext(audio_file.name)[1]  # Preserve file extension
+    audio_filename = audio_file.name  # Preserve file extension
     with open(audio_filename, "wb") as f:
         f.write(audio_file.read())
 
@@ -101,20 +71,23 @@ def transcribe_with_speechmatics(audio_file, language_code, api_key, operating_p
     with BatchClient(settings) as client:
         try:
             # Submit the transcription job to Speechmatics
-            job_id = client.submit_job(
-                audio=(audio_filename, open(audio_filename, "rb")),
-                transcription_config=conf,
-            )
+            with open(audio_filename, "rb") as audio_file:
+                job_id = client.submit_job(
+                    audio=(audio_filename, audio_file),
+                    transcription_config=conf,
+                )
 
             # Wait for the transcription job to complete
             transcript = client.wait_for_completion(job_id, transcription_format="txt")
-            st.write("Transcribed Text (Speechmatics):")
+            st.write(f"Transcribed Text (Speechmatics) for {audio_file.name}:")
             st.write(transcript)
         except Exception as e:
-            st.write("Error transcribing with Speechmatics:", e)
+            st.write(f"Error transcribing with Speechmatics for {audio_file.name}:", e)
         finally:
             # Remove the temporary audio file
             os.remove(audio_filename)
+
+
 
 def transcribe_with_google(audio_file, language_code, credentials):
     # Mapping language codes for different accents
@@ -142,7 +115,9 @@ def transcribe_with_google(audio_file, language_code, credentials):
     transcribed_text = ""
     for result in response.results:
         transcribed_text += result.alternatives[0].transcript + "\n"
-
+    
+    st.write(f"Transcribed Text (Google cloud api) for {audio_file.name}:")
+    st.write(transcribed_text)
     return transcribed_text
 
 def transcribe_with_openai(audio_file, api_key):
@@ -155,7 +130,8 @@ def transcribe_with_openai(audio_file, api_key):
             response_format="text",
             language="en"
         )
-
+    st.write(f"Transcribed Text (OpenAI) for {audio_file.name}:")
+    st.write(transcript)
     return transcript
 
 def logout():
@@ -175,6 +151,9 @@ def main():
     # Login form (displayed conditionally)
     if not st.session_state["logged_in"]:
         with placeholder.form("login"):
+            # Center align the image only on the login page
+            st.image("images/logo-removebg-preview.png", use_column_width=True)
+
             st.title("Login")
             username_input = st.text_input("Username")
             password_input = st.text_input("Password", type="password")
@@ -211,19 +190,20 @@ def main():
 
         # Main transcribing functionality
         st.title("Upload your audio to transcribe:")
-        uploaded_file = st.file_uploader("")
+        uploaded_files = st.file_uploader("Upload multiple files", accept_multiple_files=True)
 
-        if uploaded_file is not None:
+        if uploaded_files is not None:
             if st.button("Transcribe"):
-                if service_option == "Speechmatics":
-                    transcribe_with_speechmatics(uploaded_file, language_option, st.session_state["api_key"], accuracy_option)
-                elif service_option == "Google Cloud Speech-to-Text":
-                    credentials_file = st.sidebar.file_uploader("Upload credentials.json", type=["json"])
-                    if credentials_file is not None:
-                        credentials = credentials_file.read()
-                        transcribe_with_google(uploaded_file, language_option, credentials)
-                elif service_option == "OpenAI":
-                    transcribe_with_openai(uploaded_file, st.session_state["api_key"])
+                for uploaded_file in uploaded_files:
+                    if service_option == "Speechmatics":
+                        transcribe_with_speechmatics(uploaded_file, language_option, st.session_state["api_key"], accuracy_option)
+                    elif service_option == "Google Cloud Speech-to-Text":
+                        credentials_file = st.sidebar.file_uploader("Upload credentials.json", type=["json"])
+                        if credentials_file is not None:
+                            credentials = credentials_file.read()
+                            transcribe_with_google(uploaded_file, language_option, credentials)
+                    elif service_option == "OpenAI":
+                        transcribe_with_openai(uploaded_file, st.session_state["api_key"])
 
 # Run the Streamlit app
 if __name__ == "__main__":
