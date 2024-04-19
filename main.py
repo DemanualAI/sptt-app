@@ -157,6 +157,7 @@ def change_api_key(service, api_key):
         with open(api_key_path, "w") as key_file:
             key_file.write(api_key)
         st.success(f"API Key for {service} changed successfully!")
+    st.session_state["api_key"][service] = api_key
 
 # Function to get Google Cloud Speech-to-Text credentials
 def get_google_credentials():
