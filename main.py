@@ -266,7 +266,22 @@ def main():
         # Main transcribing functionality
         st.title("Upload your audio to transcribe:")
         uploaded_files = st.file_uploader("Upload multiple files", accept_multiple_files=True)
-
+        
+        # Transcribe button
+        if uploaded_files:
+            if st.button("Transcribe"):
+                for uploaded_file in uploaded_files:
+                    if service_option == "Speechmatics":
+                        transcribe_with_speechmatics(uploaded_file, language_option, st.session_state["api_key"]["Speechmatics"], accuracy_option)
+                    elif service_option == "Google Cloud Speech-to-Text":
+                        credentials = get_google_credentials()
+                        if credentials:
+                            transcribe_with_google(uploaded_file, language_option, credentials)
+                        else:
+                            st.error("Google Cloud Speech-to-Text credentials not found. Please upload the credentials file.")
+                    elif service_option == "OpenAI":
+                        transcribe_with_openai(uploaded_file, st.session_state["api_key"]["OpenAI"])
+                        
         # Download options for the results
         if uploaded_files:
             st.title("Download Options")
