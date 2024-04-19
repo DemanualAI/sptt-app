@@ -157,7 +157,6 @@ def change_api_key(service, api_key):
         with open(api_key_path, "w") as key_file:
             key_file.write(api_key)
         st.success(f"API Key for {service} changed successfully!")
-    st.session_state["api_key"][service] = api_key
 
 # Function to get Google Cloud Speech-to-Text credentials
 def get_google_credentials():
@@ -244,11 +243,11 @@ def main():
         # Display API Key input and Change API Key button
         st.sidebar.title("API Setup")
         service_option = st.sidebar.selectbox("Select Transcription Service", ("Speechmatics", "Google Cloud Speech-to-Text", "OpenAI"), key="transcription_service")
-        language_option = st.sidebar.radio("Select Language (Accent)", ("Australia", "American", "British"))
+        language_option = st.sidebar.radio("Select Language (Accent)", ("British", "American", "Australia"))
         
         # Accuracy selector for Speechmatics
         if service_option == "Speechmatics":
-            accuracy_option = st.sidebar.radio("Select Accuracy Level", ("Enhanced", "Standard"))
+            accuracy_option = st.sidebar.radio("Select Accuracy Level", ("Standard", "Enhanced"))
 
         # Input box for API Key or credentials file upload
         if service_option == "Google Cloud Speech-to-Text":
@@ -268,52 +267,57 @@ def main():
         st.title("Upload your audio to transcribe:")
         uploaded_files = st.file_uploader("Upload multiple files", accept_multiple_files=True)
 
-        if uploaded_files:
-            if st.button("Transcribe"):
-                for uploaded_file in uploaded_files:
-                    if service_option == "Speechmatics":
-                        transcribe_with_speechmatics(uploaded_file, language_option, st.session_state["api_key"]["Speechmatics"], accuracy_option)
-                    elif service_option == "Google Cloud Speech-to-Text":
-                        credentials = get_google_credentials()
-                        if credentials:
-                            transcribe_with_google(uploaded_file, language_option, credentials)
-                        else:
-                            st.error("Google Cloud Speech-to-Text credentials not found. Please upload the credentials file.")
-                    elif service_option == "OpenAI":
-                        transcribe_with_openai(uploaded_file, st.session_state["api_key"]["OpenAI"])
-
         # Download options for the results
         if uploaded_files:
             st.title("Download Options")
             result_files = [f"transcription_{file.name}.txt" for file in uploaded_files]
-            
+
             if not result_files:
                 st.error("Please transcribe the audio files to download them.")
             else:
-                combined_content = ""
+                # Multi-select option to choose files for download
+                selected_files = st.multiselect("Select files to download:", result_files)
+
+                if selected_files:
+                    # Initialize combined_content before usage
+                    combined_content = ""
+
+                    for result_file in selected_files:
+                        try:
+                            with open(result_file, "r") as f:
+                                file_content = f.read()
+                                combined_content += f"\n\nTranscription from {result_file}:\n\n{file_content}"
+                        except FileNotFoundError:
+                            st.error(f"Please transcribe the audio files to download them.")
+
+                    # Create a combined text file only if files are selected
+                    if combined_content:
+                        combined_file_name = "selected_files_transcription.txt"
+                        with open(combined_file_name, "w") as f:
+                            f.write(combined_content)
+
+                        # Provide a download button for the combined text file
+                        st.download_button(label="Download Selected Transcriptions", data=open(combined_file_name, "rb"), file_name=combined_file_name)
+
+            # Create a download button for all transcriptions combined
+            if result_files:
+                combined_all_content = ""
                 for result_file in result_files:
                     try:
                         with open(result_file, "r") as f:
                             file_content = f.read()
-                            combined_content += f"\n\nTranscription from {result_file}:\n\n{file_content}"
+                            combined_all_content += f"\n\nTranscription from {result_file}:\n\n{file_content}"
                     except FileNotFoundError:
                         st.error(f"Please transcribe the audio files to download them.")
 
-                # Create a combined text file
-                combined_file_name = "combined_transcriptions.txt"
-                with open(combined_file_name, "w") as f:
-                    f.write(combined_content)
-                
-                selected_file = st.selectbox("Select a file to download:", result_files)
-                try:
-                    with open(selected_file, "r") as f:
-                        file_content = f.read()
-                    st.download_button(label=f"Download {selected_file}",  data=file_content, file_name=selected_file)
-                except FileNotFoundError:
-                    pass
-                
-                st.download_button(label="Download All Transcriptions", type="primary", data=open(combined_file_name, "rb"), file_name=combined_file_name)
-       
+                # Create a combined text file with all transcriptions
+                combined_all_file_name = "All_files_transcription.txt"
+                with open(combined_all_file_name, "w") as f:
+                    f.write(combined_all_content)
+
+                # Provide a download button for all transcriptions combined
+                st.download_button(label="Download All Transcriptions", type="primary", data=open(combined_all_file_name, "rb"), file_name=combined_all_file_name)
+
 # Run the Streamlit app
 if __name__ == "__main__":
     main()
