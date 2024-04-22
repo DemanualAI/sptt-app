@@ -225,6 +225,9 @@ import json
 import openai
 import supabase
 from google.oauth2.service_account import Credentials as GoogleCredentials
+                
+import zipfile
+import shutil
 
 # Initialize Supabase client
 supabase_url = "https://cxubvlwhxxdwvfwtofgv.supabase.co"
@@ -502,8 +505,8 @@ def main():
                             st.error("Google Cloud Speech-to-Text credentials not found. Please upload the credentials file.")
                     elif service_option == "OpenAI":
                         transcribe_with_openai(uploaded_file, st.session_state["api_key"]["OpenAI"])
-                        
-        # Download options for the results
+
+
         if uploaded_files:
             st.title("Download Options")
             result_files = [f"transcription_{file.name}.txt" for file in uploaded_files]
@@ -515,14 +518,14 @@ def main():
                 selected_files = st.multiselect("Select files to download:", result_files)
 
                 if selected_files:
-                    # Initialize combined_content before usage
-                    combined_content = ""
+                    # Initialize a temporary directory to store individual transcriptions
+                    temp_dir = "temp_transcriptions"
+                    os.makedirs(temp_dir, exist_ok=True)
 
                     for result_file in selected_files:
                         try:
-                            with open(result_file, "r") as f:
-                                file_content = f.read()
-                                combined_content += f"\n\nTranscription from {result_file}:\n\n{file_content}"
+                            # Copy selected files to the temporary directory
+                            shutil.copy(result_file, temp_dir)
                         except FileNotFoundError:
                             # Set flag if any file is not found
                             file_not_found = True
@@ -531,33 +534,26 @@ def main():
                     if "file_not_found" in locals():
                         st.error(f"Please transcribe the audio files to download them.")
                     else:
-                        # Create a combined text file only if files are selected
-                        if combined_content:
-                            combined_file_name = "selected_files_transcription.txt"
-                            with open(combined_file_name, "w") as f:
-                                f.write(combined_content)
+                        # Create a zip file from the temporary directory
+                        zip_file_name = "selected_files_transcriptions.zip"
+                        with zipfile.ZipFile(zip_file_name, 'w') as zipf:
+                            for result_file in selected_files:
+                                if os.path.exists(result_file):
+                                    zipf.write(result_file, os.path.basename(result_file))
 
-                            # Provide a download button for the combined text file
-                            st.download_button(label="Download Selected Transcriptions", data=open(combined_file_name, "rb"), file_name=combined_file_name)
+                        # Provide a download button for the zip file
+                        st.download_button(label="Download Selected Transcriptions", data=open(zip_file_name, "rb"), file_name=zip_file_name)
 
             # Create a download button for all transcriptions combined
             if result_files:
-                combined_all_content = ""
-                for result_file in result_files:
-                    try:
-                        with open(result_file, "r") as f:
-                            file_content = f.read()
-                            combined_all_content += f"\n\nTranscription from {result_file}:\n\n{file_content}"
-                    except FileNotFoundError:
-                        st.error(f"Please transcribe the audio files to download them.")
+                zip_all_file_name = "all_files_transcriptions.zip"
+                with zipfile.ZipFile(zip_all_file_name, 'w') as zipf:
+                    for result_file in result_files:
+                        if os.path.exists(result_file):
+                            zipf.write(result_file, os.path.basename(result_file))
 
-                # Create a combined text file with all transcriptions
-                combined_all_file_name = "All_files_transcription.txt"
-                with open(combined_all_file_name, "w") as f:
-                    f.write(combined_all_content)
-
-                # Provide a download button for all transcriptions combined
-                st.download_button(label="Download All Transcriptions", type="primary", data=open(combined_all_file_name, "rb"), file_name=combined_all_file_name)
+                # Provide a download button for the zip file
+                st.download_button(label="Download All Transcriptions", type="primary", data=open(zip_all_file_name, "rb"), file_name=zip_all_file_name)
 
 # Run the Streamlit app
 if __name__ == "__main__":
