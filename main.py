@@ -7,9 +7,15 @@ import json
 import openai
 import supabase
 from google.oauth2.service_account import Credentials as GoogleCredentials
+from captcha.image import ImageCaptcha
+import random
+import string
                 
 import zipfile
 import shutil
+
+# Set page configuration
+st.set_page_config(page_title="SPTT APP")
 
 # Initialize Supabase client
 supabase_url = "https://cxubvlwhxxdwvfwtofgv.supabase.co"
@@ -26,13 +32,76 @@ def authenticate_user(users_email, users_password):
         print(f"An error occurred during authentication: {e}")
         st.error("An error occurred during authentication. Please try again.")
         return False
+    
+# Function to change password in Supabase
+def change_password(users_email, current_password, new_password):
+    try:
+        # Get current user
+        user = supabase_client.auth.sign_in_with_password({ "email": users_email, "password": current_password })
+
+        # Change the password
+        supabase_client.auth.update_user({"password": new_password})
+
+        st.success("Password changed successfully!")
+    except Exception as e:
+        st.error(f"An error occurred during password change: {e}")
+
+if "file_uploader_key" not in st.session_state:
+    st.session_state["file_uploader_key"] = 0
+
+if "uploaded_files" not in st.session_state:
+    st.session_state["uploaded_files"] = []
+
+def generate_captcha_word():
+    letters_and_digits = string.ascii_letters + string.digits
+    return ''.join((random.choice(letters_and_digits) for i in range(6)))
+
+# Function to generate and display CAPTCHA image
+def generate_captcha_image():
+    image = ImageCaptcha(width=280, height=90)
+    captcha_word = generate_captcha_word()
+    data = image.generate(captcha_word)
+    return captcha_word, data
+
+# Function to authenticate user with CAPTCHA check
+def authenticate_user_with_captcha(username, password, captcha_input, captcha_word):
+    if captcha_input.lower() == captcha_word.lower():
+        # Authenticate user with username and password
+        if authenticate_user(username, password):
+            st.session_state["logged_in"] = True
+            st.success("Logged in successfully!")
+        else:
+            st.error("Login failed. Please check your credentials.")
+    else:
+        st.error("CAPTCHA verification failed. Please try again.")
+        
+
+def password_change_form():
+    with st.form("change_password"):
+        st.title("Change Password")
+        username_input = st.text_input("Username")
+        current_password = st.text_input("Current Password", type="password")
+        new_password = st.text_input("New Password", type="password")
+        confirm_password = st.text_input("Confirm New Password", type="password")
+        submit = st.form_submit_button("Change Password")
+
+        # Button to return to login page
+        if submit:
+            if new_password != confirm_password:
+                st.error("New passwords do not match!")
+            else:
+                change_password(username_input, current_password, new_password)
+
+    
+    st.markdown("⊙ Return to [Login](http://localhost:8501/)", unsafe_allow_html=True)
 
 import tenacity
 
-# Function to transcribe audio with Speechmatics
-@tenacity.retry(wait=tenacity.wait_random_exponential(multiplier=1, max=10), 
-                stop=tenacity.stop_after_attempt(3),
-                retry=tenacity.retry_if_exception_type(Exception))
+@tenacity.retry(
+    wait=tenacity.wait_random_exponential(multiplier=1, max=10), 
+    stop=tenacity.stop_after_attempt(3),
+    retry=tenacity.retry_if_exception_type(Exception)
+)
 def transcribe_with_speechmatics(audio_file, language_code, api_key, operating_point):
     try:
         # Speechmatics authentication token and other settings
@@ -94,9 +163,9 @@ def transcribe_with_speechmatics(audio_file, language_code, api_key, operating_p
 
         return transcript
     except tenacity.RetryError as e:
-        st.write(f"Max retry attempts reached: {e}")
+        pass
     except Exception as e:
-        st.write(f"Error transcribing with Speechmatics for {audio_filename}: {e}")
+        pass
     finally:
         # Remove the temporary audio file
         os.remove(audio_filename)
@@ -155,7 +224,7 @@ def transcribe_with_openai(audio_file, api_key):
 # Function to log out
 def logout():
     st.session_state["logged_in"] = False
-    st.session_state["api_key"] = None
+    st.session_state["captcha_word"], st.session_state["captcha_image"] = generate_captcha_image()
     st.success("Logged out successfully!")
 
 # Function to change API key
@@ -172,8 +241,6 @@ def change_api_key(service, api_key):
         st.success(f"API Key for {service} changed successfully!")
     st.session_state["api_key"][service] = api_key
     
-    
-
 # Function to get Google Cloud Speech-to-Text credentials
 def get_google_credentials():
     api_key_path = "api_key/google_credentials.json"
@@ -204,16 +271,10 @@ def ensure_folders_and_files_exist():
     if not os.path.exists("api_key/api.json"):
         with open("api_key/api.json", "w"):
             pass
-        
-if "file_uploader_key" not in st.session_state:
-    st.session_state["file_uploader_key"] = 0
+    
 
-if "uploaded_files" not in st.session_state:
-    st.session_state["uploaded_files"] = []
-        
 # Main function
 def main():
-    st.set_page_config(page_title="SPTT APP")
     ensure_folders_and_files_exist()
     placeholder = st.empty()
     # Session state for login status and API key
@@ -236,32 +297,39 @@ def main():
 
         st.session_state["api_key"] = default_api_keys
 
-    # Login form (displayed conditionally)
-    if not st.session_state["logged_in"]:
-        with placeholder.form("login"):
+    # Password change form
+    if st.session_state.get("change_password", False):
+        password_change_form()
+
+    # Login form
+    elif not st.session_state["logged_in"]:
+        if "captcha_word" not in st.session_state:
+            st.session_state["captcha_word"], st.session_state["captcha_image"] = generate_captcha_image()
+            
+        with placeholder.form("login"):            
             # Center align the image only on the login page
             st.image("images/logo-removebg-preview.png", use_column_width=True)
 
             st.title("Login")
             username_input = st.text_input("Username")
             password_input = st.text_input("Password", type="password")
+            st.image(st.session_state["captcha_image"], width=200, caption='Enter Captcha below:')
+            captcha_input = st.text_input("I'm not a robot")
             submit = st.form_submit_button()
 
         if submit:
+            authenticate_user_with_captcha(username_input, password_input, captcha_input, st.session_state["captcha_word"])
             placeholder.empty()
-            if authenticate_user(username_input, password_input):
-                st.session_state["logged_in"] = True
-                st.success("Logged in successfully!")
-            else:
-                placeholder.empty()
-                st.error("Login failed. Please check your credentials.")
-    
+
+        # Password change button
+        if st.button("Change Password"):
+            st.session_state["change_password"] = True
+
     # API setup (displayed only when logged in)
     if st.session_state["logged_in"]:
         # Logout button (displayed only when logged in)
-        if st.session_state["logged_in"]:
-            st.sidebar.button("Logout", on_click=logout)
-        
+        st.sidebar.button("Logout", on_click=logout)
+
         # Display API Key input and Change API Key button
         st.sidebar.title("API Setup")
         service_option = st.sidebar.selectbox("Select Transcription Service", ("Speechmatics", "Google Cloud Speech-to-Text", "OpenAI"), key="transcription_service")
@@ -304,7 +372,6 @@ def main():
                     elif service_option == "OpenAI":
                         transcribe_with_openai(uploaded_file, st.session_state["api_key"]["OpenAI"])
 
-
         if uploaded_files:
             st.title("Download Options")
             result_files = [f"transcription_{file.name}.txt" for file in uploaded_files]
@@ -342,7 +409,7 @@ def main():
                         # Provide a download button for the zip file
                         if st.download_button(label="Download Selected Transcriptions", data=open(zip_file_name, "rb"), file_name=zip_file_name):
                             st.session_state["file_uploader_key"] += 1
-                            st.experimental_rerun()  
+                            st.rerun()  
 
             # Create a download button for all transcriptions combined
             if result_files:
@@ -355,8 +422,8 @@ def main():
                 # Provide a download button for the zip file
                 if st.download_button(label="Download All Transcriptions", type="primary", data=open(zip_all_file_name, "rb"), file_name=zip_all_file_name):
                     st.session_state["file_uploader_key"] += 1
-                    st.experimental_rerun()
+                    st.rerun()
                     
-# Run the Streamlit app
+# Run the app
 if __name__ == "__main__":
     main()
