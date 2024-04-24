@@ -322,8 +322,9 @@ def main():
             placeholder.empty()
 
         # Password change button
-        if st.button("Change Password"):
-            st.session_state["change_password"] = True
+        if not st.session_state["logged_in"]:
+            if st.button("Change Password"):
+                st.session_state["change_password"] = True
 
     # API setup (displayed only when logged in)
     if st.session_state["logged_in"]:
