@@ -53,7 +53,7 @@ if "uploaded_files" not in st.session_state:
     st.session_state["uploaded_files"] = []
 
 def generate_captcha_word():
-    letters_and_digits = string.ascii_letters + string.digits
+    letters_and_digits = string.ascii_letters
     return ''.join((random.choice(letters_and_digits) for i in range(6)))
 
 # Function to generate and display CAPTCHA image
@@ -315,14 +315,16 @@ def main():
             password_input = st.text_input("Password", type="password")
             st.image(st.session_state["captcha_image"], width=200, caption='Enter Captcha below:')
             captcha_input = st.text_input("I'm not a robot")
-            submit = st.form_submit_button()
+            robot = st.checkbox('I am not a robot')
+            submit = st.form_submit_button()  
+                    
 
-        if submit:
+        if submit and robot:
             authenticate_user_with_captcha(username_input, password_input, captcha_input, st.session_state["captcha_word"])
             placeholder.empty()
 
         # Password change button
-        if not st.session_state["logged_in"]:
+        if  st.session_state["logged_in"]:
             if st.button("Change Password"):
                 st.session_state["change_password"] = True
 
