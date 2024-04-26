@@ -36,9 +36,7 @@ def authenticate_user(users_email, users_password):
 # Function to change password in Supabase
 def change_password(users_email, current_password, new_password):
     try:
-        # Get current user
-        user = supabase_client.auth.sign_in_with_password({ "email": users_email, "password": current_password })
-
+        authenticate_user(users_email, current_password)
         # Change the password
         supabase_client.auth.update_user({"password": new_password})
 
@@ -54,12 +52,15 @@ if "uploaded_files" not in st.session_state:
 
 def generate_captcha_word():
     letters_and_digits = string.digits
-    return ''.join((random.choice(letters_and_digits) for i in range(6)))
+    word = ''.join((random.choice(letters_and_digits) for i in range(6)))
+    print(word)
+    return word
 
 # Function to generate and display CAPTCHA image
 def generate_captcha_image():
     image = ImageCaptcha(width=280, height=90)
     captcha_word = generate_captcha_word()
+    print(captcha_word)
     data = image.generate(captcha_word)
     return captcha_word, data
 
@@ -77,20 +78,24 @@ def authenticate_user_with_captcha(username, password, captcha_input, captcha_wo
         
 
 def password_change_form():
-    with st.form("change_password"):
-        st.title("Change Password")
+    st.title("Change Password")
+    
+    # Create a separate form group for password change
+    with st.form("change_password_form"):
         username_input = st.text_input("Username")
         current_password = st.text_input("Current Password", type="password")
         new_password = st.text_input("New Password", type="password")
         confirm_password = st.text_input("Confirm New Password", type="password")
-        submit = st.form_submit_button("Change Password")
 
-        # Button to return to login page
-        if submit:
-            if new_password != confirm_password:
-                st.error("New passwords do not match!")
-            else:
-                change_password(username_input, current_password, new_password)
+        # Button to change password
+        change_password_button = st.form_submit_button("Change Password")
+
+    # Handle password change
+    if change_password_button:
+        if new_password != confirm_password:
+            st.error("New passwords do not match!")
+        else:
+            change_password(username_input, current_password, new_password)
 
 
 import tenacity
@@ -273,7 +278,8 @@ def ensure_folders_and_files_exist():
 
 # Main function
 def main():
-    st.session_state["logged_in"] = False
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
     ensure_folders_and_files_exist()
     placeholder = st.empty()
 
@@ -424,6 +430,4 @@ def main():
                   
 # Run the app
 if __name__ == "__main__":
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
     main()
