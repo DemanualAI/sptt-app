@@ -92,8 +92,6 @@ def password_change_form():
             else:
                 change_password(username_input, current_password, new_password)
 
-    
-    st.markdown("⊙ Return to [Login](http://localhost:8501/)", unsafe_allow_html=True)
 
 import tenacity
 
@@ -275,6 +273,7 @@ def ensure_folders_and_files_exist():
 
 # Main function
 def main():
+    # st.session_state["logged_in"] = True
     ensure_folders_and_files_exist()
     placeholder = st.empty()
     # Session state for login status and API key
@@ -297,9 +296,6 @@ def main():
 
         st.session_state["api_key"] = default_api_keys
 
-    # Password change form
-    if st.session_state.get("change_password", False):
-        password_change_form()
 
     # Login form
     elif not st.session_state["logged_in"]:
@@ -323,110 +319,111 @@ def main():
             authenticate_user_with_captcha(username_input, password_input, captcha_input, st.session_state["captcha_word"])
             placeholder.empty()
 
-        # Password change button
-        if  st.session_state["logged_in"]:
-            if st.button("Change Password"):
-                st.session_state["change_password"] = True
 
     # API setup (displayed only when logged in)
     if st.session_state["logged_in"]:
-        # Logout button (displayed only when logged in)
-        st.sidebar.button("Logout", on_click=logout)
+        dash, password_change = st.tabs(["🚀Dashboard", "⚙️Settings"])
+        with dash:
+            # Logout button (displayed only when logged in)
+            st.sidebar.button("Logout", on_click=logout)
 
-        # Display API Key input and Change API Key button
-        st.sidebar.title("API Setup")
-        service_option = st.sidebar.selectbox("Select Transcription Service", ("Speechmatics", "Google Cloud Speech-to-Text", "OpenAI"), key="transcription_service")
-        language_option = st.sidebar.radio("Select Language (Accent)", ("British", "American", "Australia"))
-        
-        # Accuracy selector for Speechmatics
-        if service_option == "Speechmatics":
-            accuracy_option = st.sidebar.radio("Select Accuracy Level", ("Standard", "Enhanced"))
+            # Display API Key input and Change API Key button
+            st.sidebar.title("API Setup")
+            service_option = st.sidebar.selectbox("Select Transcription Service", ("Speechmatics", "Google Cloud Speech-to-Text", "OpenAI"), key="transcription_service")
+            language_option = st.sidebar.radio("Select Language (Accent)", ("British", "American", "Australia"))
+            
+            # Accuracy selector for Speechmatics
+            if service_option == "Speechmatics":
+                accuracy_option = st.sidebar.radio("Select Accuracy Level", ("Standard", "Enhanced"))
 
-        # Input box for API Key or credentials file upload
-        if service_option == "Google Cloud Speech-to-Text":
-            api_key = st.sidebar.file_uploader("Upload credentials.json", type=["json"])
-            if api_key:
-                change_api_key(service_option, api_key.read().decode("utf-8"))
-        else:
-            api_key = st.sidebar.text_input("Enter API Key", st.session_state["api_key"][service_option] or "")
-            if st.sidebar.button("Change API Key"):
-                new_api_key = api_key
-                if new_api_key:
-                    change_api_key(service_option, new_api_key)
-                else:
-                    st.warning("Please provide a valid API key.")
-
-        # Main transcribing functionality
-        st.title("Upload your audio to transcribe:")
-        uploaded_files = st.file_uploader("Upload multiple files", key=st.session_state["file_uploader_key"], accept_multiple_files=True)
-        
-        # Transcribe button
-        if uploaded_files:
-            if st.button("Transcribe"):
-                for uploaded_file in uploaded_files:
-                    if service_option == "Speechmatics":
-                        transcribe_with_speechmatics(uploaded_file, language_option, st.session_state["api_key"]["Speechmatics"], accuracy_option)
-                    elif service_option == "Google Cloud Speech-to-Text":
-                        credentials = get_google_credentials()
-                        if credentials:
-                            transcribe_with_google(uploaded_file, language_option, credentials)
-                        else:
-                            st.error("Google Cloud Speech-to-Text credentials not found. Please upload the credentials file.")
-                    elif service_option == "OpenAI":
-                        transcribe_with_openai(uploaded_file, st.session_state["api_key"]["OpenAI"])
-
-        if uploaded_files:
-            st.title("Download Options")
-            result_files = [f"transcription_{file.name}.txt" for file in uploaded_files]
-
-            if not result_files:
-                st.error("Please transcribe the audio files to download them.")
+            # Input box for API Key or credentials file upload
+            if service_option == "Google Cloud Speech-to-Text":
+                api_key = st.sidebar.file_uploader("Upload credentials.json", type=["json"])
+                if api_key:
+                    change_api_key(service_option, api_key.read().decode("utf-8"))
             else:
-                # Multi-select option to choose files for download
-                selected_files = st.multiselect("Select files to download:", result_files)
-
-                if selected_files:
-                    # Initialize a temporary directory to store individual transcriptions
-                    temp_dir = "temp_transcriptions"
-                    os.makedirs(temp_dir, exist_ok=True)
-
-                    for result_file in selected_files:
-                        try:
-                            # Copy selected files to the temporary directory
-                            shutil.copy(result_file, temp_dir)
-                        except FileNotFoundError:
-                            # Set flag if any file is not found
-                            file_not_found = True
-
-                    # If any file is not found, display error message
-                    if "file_not_found" in locals():
-                        st.error(f"Please transcribe the audio files to download them.")
+                api_key = st.sidebar.text_input("Enter API Key", st.session_state["api_key"][service_option] or "")
+                if st.sidebar.button("Change API Key"):
+                    new_api_key = api_key
+                    if new_api_key:
+                        change_api_key(service_option, new_api_key)
                     else:
-                        # Create a zip file from the temporary directory
-                        zip_file_name = "selected_files_transcriptions.zip"
-                        with zipfile.ZipFile(zip_file_name, 'w') as zipf:
-                            for result_file in selected_files:
-                                if os.path.exists(result_file):
-                                    zipf.write(result_file, os.path.basename(result_file))
+                        st.warning("Please provide a valid API key.")
 
-                        # Provide a download button for the zip file
-                        if st.download_button(label="Download Selected Transcriptions", data=open(zip_file_name, "rb"), file_name=zip_file_name):
-                            st.session_state["file_uploader_key"] += 1
-                            st.rerun()  
+            # Main transcribing functionality
+            st.title("Upload your audio to transcribe:")
+            uploaded_files = st.file_uploader("Upload multiple files", key=st.session_state["file_uploader_key"], accept_multiple_files=True)
+            
+            # Transcribe button
+            if uploaded_files:
+                if st.button("Transcribe"):
+                    for uploaded_file in uploaded_files:
+                        if service_option == "Speechmatics":
+                            transcribe_with_speechmatics(uploaded_file, language_option, st.session_state["api_key"]["Speechmatics"], accuracy_option)
+                        elif service_option == "Google Cloud Speech-to-Text":
+                            credentials = get_google_credentials()
+                            if credentials:
+                                transcribe_with_google(uploaded_file, language_option, credentials)
+                            else:
+                                st.error("Google Cloud Speech-to-Text credentials not found. Please upload the credentials file.")
+                        elif service_option == "OpenAI":
+                            transcribe_with_openai(uploaded_file, st.session_state["api_key"]["OpenAI"])
 
-            # Create a download button for all transcriptions combined
-            if result_files:
-                zip_all_file_name = "all_files_transcriptions.zip"
-                with zipfile.ZipFile(zip_all_file_name, 'w') as zipf:
-                    for result_file in result_files:
-                        if os.path.exists(result_file):
-                            zipf.write(result_file, os.path.basename(result_file))
+            if uploaded_files:
+                st.title("Download Options")
+                result_files = [f"transcription_{file.name}.txt" for file in uploaded_files]
 
-                # Provide a download button for the zip file
-                if st.download_button(label="Download All Transcriptions", type="primary", data=open(zip_all_file_name, "rb"), file_name=zip_all_file_name):
-                    st.session_state["file_uploader_key"] += 1
-                    st.rerun()
-                    
+                if not result_files:
+                    st.error("Please transcribe the audio files to download them.")
+                else:
+                    # Multi-select option to choose files for download
+                    selected_files = st.multiselect("Select files to download:", result_files)
+
+                    if selected_files:
+                        # Initialize a temporary directory to store individual transcriptions
+                        temp_dir = "temp_transcriptions"
+                        os.makedirs(temp_dir, exist_ok=True)
+
+                        for result_file in selected_files:
+                            try:
+                                # Copy selected files to the temporary directory
+                                shutil.copy(result_file, temp_dir)
+                            except FileNotFoundError:
+                                # Set flag if any file is not found
+                                file_not_found = True
+
+                        # If any file is not found, display error message
+                        if "file_not_found" in locals():
+                            st.error(f"Please transcribe the audio files to download them.")
+                        else:
+                            # Create a zip file from the temporary directory
+                            zip_file_name = "selected_files_transcriptions.zip"
+                            with zipfile.ZipFile(zip_file_name, 'w') as zipf:
+                                for result_file in selected_files:
+                                    if os.path.exists(result_file):
+                                        zipf.write(result_file, os.path.basename(result_file))
+
+                            # Provide a download button for the zip file
+                            if st.download_button(label="Download Selected Transcriptions", data=open(zip_file_name, "rb"), file_name=zip_file_name):
+                                st.session_state["file_uploader_key"] += 1
+                                st.rerun()  
+
+                # Create a download button for all transcriptions combined
+                if result_files:
+                    zip_all_file_name = "all_files_transcriptions.zip"
+                    with zipfile.ZipFile(zip_all_file_name, 'w') as zipf:
+                        for result_file in result_files:
+                            if os.path.exists(result_file):
+                                zipf.write(result_file, os.path.basename(result_file))
+
+                    # Provide a download button for the zip file
+                    if st.download_button(label="Download All Transcriptions", type="primary", data=open(zip_all_file_name, "rb"), file_name=zip_all_file_name):
+                        st.session_state["file_uploader_key"] += 1
+                        st.rerun()
+                        
+        with password_change:
+            password_change_form()
+                  
 # Run the app
 if __name__ == "__main__":
     main()
