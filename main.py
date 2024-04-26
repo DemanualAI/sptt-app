@@ -273,12 +273,10 @@ def ensure_folders_and_files_exist():
 
 # Main function
 def main():
-    # st.session_state["logged_in"] = True
+    st.session_state["logged_in"] = False
     ensure_folders_and_files_exist()
     placeholder = st.empty()
-    # Session state for login status and API key
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
+
     if "api_key" not in st.session_state:
         # Initialize default API keys from the api_key folder if available
         default_api_keys = {
@@ -298,7 +296,7 @@ def main():
 
 
     # Login form
-    elif not st.session_state["logged_in"]:
+    if not st.session_state["logged_in"]:
         if "captcha_word" not in st.session_state:
             st.session_state["captcha_word"], st.session_state["captcha_image"] = generate_captcha_image()
             
@@ -426,4 +424,6 @@ def main():
                   
 # Run the app
 if __name__ == "__main__":
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
     main()
