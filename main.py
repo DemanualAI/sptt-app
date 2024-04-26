@@ -53,7 +53,7 @@ if "uploaded_files" not in st.session_state:
     st.session_state["uploaded_files"] = []
 
 def generate_captcha_word():
-    letters_and_digits = string.ascii_letters
+    letters_and_digits = string.digits
     return ''.join((random.choice(letters_and_digits) for i in range(6)))
 
 # Function to generate and display CAPTCHA image
